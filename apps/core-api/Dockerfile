@@ -1,4 +1,5 @@
 FROM maven:3.9.16-eclipse-temurin-17 AS build
+ENV MAVEN_OPTS="-Xmx640m"
 WORKDIR /app
 # 配置阿里云 Maven 镜像源加速依赖下载
 RUN mkdir -p /root/.m2 && cat > /root/.m2/settings.xml <<'EOF'

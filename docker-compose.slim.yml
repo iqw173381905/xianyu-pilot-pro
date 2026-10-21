@@ -1,0 +1,252 @@
+name: xianyu-pro-slim
+
+services:
+  mysql:
+    image: mysql:8.4.10
+    container_name: xianyu-admin-mysql
+    mem_limit: 384m
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: xianyu_assistant_admin
+      MYSQL_USER: ${MYSQL_APP_USER:-xianyu_app}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-dev-only-mysql-app-password-change-me}
+      TZ: Asia/Shanghai
+    expose:
+      - "3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=128M --performance-schema=OFF --max-connections=50 --innodb-log-file-size=64M
+    healthcheck:
+      test: ["CMD-SHELL", 'mysqladmin ping -uroot --password="$${MYSQL_ROOT_PASSWORD}" --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - data
+
+  redis:
+    image: redis:7.4.9-alpine
+    container_name: xianyu-crawler-redis
+    mem_limit: 80m
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-dev-only-redis-password-change-me}", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - data
+
+  backend:
+    build: ./apps/core-api
+    container_name: xianyu-admin-backend
+    mem_limit: 448m
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      automation:
+        condition: service_healthy
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    environment:
+      JDK_JAVA_OPTIONS: "-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxMetaspaceSize=128m"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/xianyu_assistant_admin?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_APP_USER:-xianyu_app}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-dev-only-mysql-app-password-change-me}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET must be set}
+      COOKIE_CRYPTO_SECRET: ${COOKIE_CRYPTO_SECRET:?COOKIE_CRYPTO_SECRET must be set}
+      ADMIN_SEED_ENABLED: ${ADMIN_SEED_ENABLED:-false}
+      ADMIN_CORS_ALLOWED_ORIGINS: ${ADMIN_CORS_ALLOWED_ORIGINS:-}
+      ADMIN_CORS_ALLOWED_ORIGIN_PATTERNS: ${ADMIN_CORS_ALLOWED_ORIGIN_PATTERNS:-}
+      USER_CORS_ALLOWED_ORIGINS: ${USER_CORS_ALLOWED_ORIGINS:-}
+      USER_CORS_ALLOWED_ORIGIN_PATTERNS: ${USER_CORS_ALLOWED_ORIGIN_PATTERNS:-}
+      AUTOMATION_BASE_URL: http://automation:12401
+      CRAWLER_BASE_URL: http://crawler-service:3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set}
+      OPS_METRICS_TOKEN: ${OPS_METRICS_TOKEN:-}
+      IMAGE_PROXY_ALLOWED_HOSTS: ${IMAGE_PROXY_ALLOWED_HOSTS:-}
+      AI_PROVIDER_ALLOWED_HOSTS: ${AI_PROVIDER_ALLOWED_HOSTS:-}
+      NOTIFICATION_WEBHOOK_ALLOWED_HOSTS: ${NOTIFICATION_WEBHOOK_ALLOWED_HOSTS:-}
+      NOTIFICATION_SMTP_ALLOWED_HOSTS: ${NOTIFICATION_SMTP_ALLOWED_HOSTS:-}
+      JWT_EXPIRE_SECONDS: ${JWT_EXPIRE_SECONDS:-86400}
+      MEDIA_COOKIE_SECURE: ${MEDIA_COOKIE_SECURE:-false}
+      MEDIA_SESSION_MAX_AGE_SECONDS: ${MEDIA_SESSION_MAX_AGE_SECONDS:-1200}
+      JWT_ISSUER: ${JWT_ISSUER:-xianyu-core-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-xianyu-user-api}
+      PAYMENT_SANDBOX_ENABLED: ${PAYMENT_SANDBOX_ENABLED:-false}
+      OPEN_SOURCE_BRIDGE_TOKEN: ${OPEN_SOURCE_BRIDGE_TOKEN:-}
+      OPEN_SOURCE_BRIDGE_SITE_CODE: ${OPEN_SOURCE_BRIDGE_SITE_CODE:-open-source}
+      OPEN_SOURCE_BRIDGE_SITE_NAME: ${OPEN_SOURCE_BRIDGE_SITE_NAME:-开源版}
+      XIANYU_UPLOAD_ROOT_DIR: /app/uploads
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-18080}:18080"
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error http://127.0.0.1:18080/api/health | grep -q '\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app
+      - data
+
+  automation:
+    build: ./apps/automation-service
+    container_name: xianyu-automation-service
+    mem_limit: 320m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_APP_USER:-xianyu_app}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-dev-only-mysql-app-password-change-me}
+      MYSQL_DATABASE: xianyu_assistant_admin
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set}
+      COOKIE_CRYPTO_SECRET: ${COOKIE_CRYPTO_SECRET:?COOKIE_CRYPTO_SECRET must be set}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET must be set}
+      ADMIN_JWT_ISSUER: ${JWT_ISSUER:-xianyu-core-api}
+      ADMIN_JWT_AUDIENCE: ${JWT_AUDIENCE:-xianyu-user-api}
+      NOTIFICATION_WEBHOOK_ALLOWED_HOSTS: ${NOTIFICATION_WEBHOOK_ALLOWED_HOSTS:-}
+      NOTIFICATION_SMTP_ALLOWED_HOSTS: ${NOTIFICATION_SMTP_ALLOWED_HOSTS:-}
+      CORE_API_BASE_URL: http://backend:18080
+      CRAWLER_SERVICE_URL: http://crawler-service:3001
+      # 2026-08-02 添加 Redis 配置（x5sec_cache_client.py 需要，用于读取缓存的 x5sec）
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+    expose:
+      - "12401"
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:12401/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app
+      - data
+
+  automation-worker:
+    build: ./apps/automation-service
+    container_name: xianyu-automation-worker
+    mem_limit: 256m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_APP_USER:-xianyu_app}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-dev-only-mysql-app-password-change-me}
+      MYSQL_DATABASE: xianyu_assistant_admin
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set}
+      COOKIE_CRYPTO_SECRET: ${COOKIE_CRYPTO_SECRET:?COOKIE_CRYPTO_SECRET must be set}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET must be set}
+      ADMIN_JWT_ISSUER: ${JWT_ISSUER:-xianyu-core-api}
+      ADMIN_JWT_AUDIENCE: ${JWT_AUDIENCE:-xianyu-user-api}
+      NOTIFICATION_WEBHOOK_ALLOWED_HOSTS: ${NOTIFICATION_WEBHOOK_ALLOWED_HOSTS:-}
+      NOTIFICATION_SMTP_ALLOWED_HOSTS: ${NOTIFICATION_SMTP_ALLOWED_HOSTS:-}
+      CORE_API_BASE_URL: http://backend:18080
+      CRAWLER_SERVICE_URL: http://crawler-service:3001
+      # 2026-08-02 添加 Redis 配置（x5sec_cache_client.py 需要）
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+      WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-60}
+      WORKER_HEARTBEAT_FILE: /tmp/automation-worker-heartbeat
+    command: ["python", "run-worker.py"]
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker_healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app
+      - data
+
+  user-web:
+    build: ./apps/user-web
+    container_name: xianyu-user-web
+    mem_limit: 64m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0777
+      - /run:rw,noexec,nosuid,size=4m
+    depends_on:
+      backend:
+        condition: service_healthy
+      automation:
+        condition: service_started
+    ports:
+      - "${USER_WEB_PORT:-5174}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  app:
+  data:
+    internal: true

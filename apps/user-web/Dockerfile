@@ -1,4 +1,6 @@
 FROM node:24.18.0-alpine AS build
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV VITE_TERMS_URL=/legal/terms.html VITE_PRIVACY_URL=/legal/privacy.html
 WORKDIR /app
 COPY package*.json ./
 RUN test "$(node --version)" = "v24.18.0" \
