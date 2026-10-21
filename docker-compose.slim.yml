@@ -241,10 +241,129 @@ services:
     networks:
       - app
 
+  crawler-postgres:
+    image: postgres:16.14-alpine
+    container_name: xianyu-crawler-postgres
+    mem_limit: 128m
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CRAWLER_DB:-xianyu_crawler}
+      POSTGRES_USER: ${CRAWLER_DB_USER:-crawler}
+      POSTGRES_PASSWORD: ${CRAWLER_DB_PASSWORD:-crawler_pass}
+      TZ: Asia/Shanghai
+    command: -c shared_buffers=32MB -c max_connections=30
+    expose:
+      - "5432"
+    volumes:
+      - crawler_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - data
+
+  crawler-service:
+    build:
+      context: ./apps/crawler-service
+      dockerfile: Dockerfile.slim
+    container_name: xianyu-crawler-service
+    mem_limit: 512m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      # 官方 4g 在 2G 小机上过大，求解并发已降到 1，1g 够用
+      - /tmp:rw,noexec,nosuid,size=1g
+    shm_size: "512m"
+    depends_on:
+      redis:
+        condition: service_healthy
+      crawler-postgres:
+        condition: service_healthy
+    environment:
+      CRAWLER_DB_HOST: crawler-postgres
+      CRAWLER_DB_PORT: 5432
+      CRAWLER_DB_USER: ${CRAWLER_DB_USER:-crawler}
+      CRAWLER_DB_PASSWORD: ${CRAWLER_DB_PASSWORD:-crawler_pass}
+      CRAWLER_DB: ${CRAWLER_DB:-xianyu_crawler}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+      PORT: 3001
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set}
+      COOKIE_CRYPTO_SECRET: ${COOKIE_CRYPTO_SECRET:?COOKIE_CRYPTO_SECRET must be set}
+      CORS_ALLOWED_ORIGINS: ${CRAWLER_CORS_ALLOWED_ORIGINS:-}
+      # 2G 小机：浏览器并发降到 1，避免求解时把内存打满
+      CRAWLER_BROWSER_CONCURRENCY: "1"
+      CRAWLER_BROWSER_CONCURRENCY_PER_TENANT: "1"
+      CRAWLER_QR_SESSION_TTL_MS: ${CRAWLER_QR_SESSION_TTL_MS:-180000}
+      HEADLESS: "true"
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\" && [ \"$(df -P /tmp | awk 'NR==2{print $4}')\" -gt 131072 ]"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    networks:
+      - app
+      - data
+
+  crawler-worker:
+    build:
+      context: ./apps/crawler-service
+      dockerfile: Dockerfile.slim
+    container_name: xianyu-crawler-worker
+    mem_limit: 640m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+    shm_size: "512m"
+    depends_on:
+      redis:
+        condition: service_healthy
+      crawler-postgres:
+        condition: service_healthy
+    environment:
+      CRAWLER_DB_HOST: crawler-postgres
+      CRAWLER_DB_PORT: 5432
+      CRAWLER_DB_USER: ${CRAWLER_DB_USER:-crawler}
+      CRAWLER_DB_PASSWORD: ${CRAWLER_DB_PASSWORD:-crawler_pass}
+      CRAWLER_DB: ${CRAWLER_DB:-xianyu_crawler}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev-only-redis-password-change-me}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set}
+      COOKIE_CRYPTO_SECRET: ${COOKIE_CRYPTO_SECRET:?COOKIE_CRYPTO_SECRET must be set}
+      HEADLESS: "true"
+    command: ["xvfb-run", "-a", "-s", "-screen 0 1280x800x24 -ac", "node", "dist/worker.js"]
+    healthcheck:
+      test: ["CMD-SHELL", "node dist/healthcheck.js && [ \"$(df -P /tmp | awk 'NR==2{print $4}')\" -gt 131072 ]"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app
+      - data
+
 volumes:
   mysql_data:
   redis_data:
   uploads_data:
+  crawler_pg_data:
 
 networks:
   app:

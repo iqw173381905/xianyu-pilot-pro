@@ -1,7 +1,8 @@
 # 精简部署说明（xypro.mrcc.top，2026-10-21 上线）
 
-在 2C2G 服务器上只跑 6 个服务，砍掉整条爬虫线。商品编辑/改价/上下架走
-user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫。
+在 2C2G 服务器上跑 9 个服务。商品编辑/改价/上下架走
+user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫；
+爬虫三件套 2026-10-21 晚为滑块求解补部署（见下文专节）。
 
 ## 组成（docker-compose.slim.yml）
 
@@ -13,9 +14,35 @@ user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫。
 | automation | automation-service（Python） | 320m |
 | automation-worker | 后台任务 | 256m |
 | user-web | 前端，绑 0.0.0.0:5174 | 64m |
+| crawler-postgres | 爬虫库 xianyu_crawler | 128m |
+| crawler-service | 滑块求解 API（:3001，仅内网） | 512m |
+| crawler-worker | 滑块求解执行（Chrome） | 640m |
 
-全栈实测约 780MB。砍掉的：crawler-service、crawler-worker、crawler-postgres、admin-web。
-代价：没有商机挖掘/对标跟卖/工作流铺货/滑块自动求解；加账号走 Cookie 导入。
+六件套实测约 780MB，爬虫三件套空闲再加约 270MB。仍砍掉的：admin-web。
+代价：没有商机挖掘/对标跟卖/工作流铺货；加账号走 Cookie 导入。
+
+## 滑块求解（爬虫三件套）
+
+- 镜像用 `apps/crawler-service/Dockerfile.slim`：官方版基于
+  mcr.microsoft.com/playwright 镜像（约 950MB，国内拉取几乎不动），
+  slim 版改用 Docker Hub 官方 node:24.18.0-bookworm-slim（走腾讯镜像源）
+  + 系统 google-chrome-stable。代码在 Linux 下所有浏览器启动都走
+  channel:'chrome'，功能一致；仅扫码登录（qrLoginSolver 的无 channel
+  启动）没有自带 Chromium 时不可用，本部署走 Cookie 导入，不受影响。
+  浏览器并发已降为 1（CRAWLER_BROWSER_CONCURRENCY）。
+- `.env` 需额外：CRAWLER_DB_PASSWORD、CRAWLER_CORS_ALLOWED_ORIGINS
+  （后者必填一个显式 HTTPS 源，如 https://xypro.mrcc.top，
+  否则生产模式拒绝启动）。
+- **首次启动前必须跑一次官方维护迁移**（生产模式服务只校验 schema、
+  不自动建表，不跑会报“数据库迁移失败，生产环境拒绝启动”）：
+  `docker compose -f docker-compose.slim.yml run --rm -e MIGRATION_MAINTENANCE_APPROVED=true -e RELEASE_ID=slim-20261021 -e MIGRATION_MANIFEST_SHA256=fcf560641f97ea21b5162e6aef0487caf196ee68774475e4b6b8424a0d2586c9 crawler-service node dist/migrate.js`
+  （RELEASE_ID 换成自己的发布号，SHA256 必须与镜像内 src/migrate.ts 的
+  REVIEWED_MANIFEST_SHA256 一致。）
+- 求解链路：详情/订单等深接口被闲鱼 FAIL_SYS_USER_VALIDATE 时不会自动
+  求解；要在账号页点“手动滑块求解”（或调 POST /captcha/handle）。
+  求解前有预校验：排除表 → 账号状态 → **Cookie 会话有效性**——
+  Cookie 会话已过期（SESSION_EXPIRED）时求解会被直接拒绝，
+  必须先重新导入一份新鲜 Cookie，滑块解得再好也救不了过期会话。
 
 ## 部署步骤
 
@@ -24,7 +51,7 @@ user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫。
    INTERNAL_API_TOKEN、COOKIE_CRYPTO_SECRET、ADMIN_JWT_SECRET、JWT_SECRET、
    API_KEY_CRYPTO_SECRET、OPS_METRICS_TOKEN、OPEN_SOURCE_BRIDGE_TOKEN、
    DATA_SYNC_API_TOKEN、COMMERCIAL_BACKEND_ACCESS_TOKEN、ADMIN_SEED_ENABLED、
-   USER_CORS_ALLOWED_ORIGINS
+   USER_CORS_ALLOWED_ORIGINS、CRAWLER_DB_PASSWORD、CRAWLER_CORS_ALLOWED_ORIGINS
 2. `docker compose -f docker-compose.slim.yml build && docker compose -f docker-compose.slim.yml up -d`
 3. **空库首次启动后必须补表结构**：见 `schema-patches.sql`（不补会持续报 Unknown column）。
 4. 首次用种子管理员 admin / 123456 登录，立即改密码，然后把
@@ -34,8 +61,7 @@ user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫。
    （0 普通 / 1 VIP / 2 SVP，后端 FeatureSwitchService 与 automation 的
    captcha 优先级共用此字段）。自部署单用户场景直接执行
    `UPDATE sys_user SET vip_level=2 WHERE id=1;` 即全功能放行，无到期时间。
-   注意：滑块“求解”本身由 crawler-service 执行，精简版未部署该组件，
-   门禁放开后点求解会提示服务不可达，需要时再单独拉起爬虫组件。
+   滑块求解组件已补部署（见上文专节），门禁放开后可直接使用。
 
 ## 三个已踩过的坑
 

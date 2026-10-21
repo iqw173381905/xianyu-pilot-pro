@@ -21,3 +21,27 @@ ALTER TABLE `sys_user`
 -- 3) 迁移文件里该列的 DEFAULT 引号被转义写坏，按正确值补
 ALTER TABLE `ai_cs_learned_kb`
   ADD COLUMN `source_type` VARCHAR(16) NOT NULL DEFAULT 'ai';
+
+-- 4) 地址字典表：执行 apps/core-api/src/main/resources/db/migration/
+--    V1.12__add_china_address_dict.sql（只有建表语句，数据按需同步）。
+
+-- ============================================================
+-- automation 侧缺口（2026-10-21 晚补，滑块求解链路实测踩出）
+-- automation-service/migrations/ 的迁移在官方部署里另有执行路径，
+-- 精简部署不会自动跑；与滑块相关的以下文件需手工执行一次
+-- （mysql --force 灌入，重复列/已存在报错可忽略）：
+--   V1.8、V1.9、V1.10、V1.14、V1.15、V1.16、V1.17、V1.24
+-- 其中 V1.28 用了 MariaDB 的 IF NOT EXISTS 语法，MySQL 8 跑不了，
+-- 等价手工 SQL 如下：
+ALTER TABLE `xianyu_captcha_solve_record`
+  ADD COLUMN `proxy_source` VARCHAR(32) NOT NULL DEFAULT '';
+CREATE INDEX `idx_xcsr_proxy_source_created`
+  ON `xianyu_captcha_solve_record` (`proxy_source`, `created_at`);
+CREATE INDEX `idx_xcsr_proxy_result`
+  ON `xianyu_captcha_solve_record` (`proxy_source`, `result`, `created_at`);
+
+-- 求解记录插入语句不给 priority/failure_reason 赋值，这两列若是
+-- NOT NULL 且无默认值，create_captcha_solve_record 会持续
+-- OperationalError、记录落不了库：
+ALTER TABLE `xianyu_captcha_solve_record` ALTER COLUMN `priority` SET DEFAULT 0;
+ALTER TABLE `xianyu_captcha_solve_record` ALTER COLUMN `failure_reason` SET DEFAULT '';

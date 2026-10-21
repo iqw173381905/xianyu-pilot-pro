@@ -1,0 +1,64 @@
+# 精简版 crawler-service 镜像（自部署小机专用）
+# 与官方 Dockerfile 的区别：不使用 mcr.microsoft.com/playwright 基础镜像
+# （国内拉取极慢），改用 Docker Hub 官方 node:24.18.0-bookworm-slim
+# + 系统 google-chrome-stable。代码在 Linux 下所有浏览器启动都走
+# channel:'chrome'（系统 Chrome），功能与官方一致；仅 qrLoginSolver 的
+# 无 channel 启动（扫码登录）无自带 Chromium 时不可用，本部署走 Cookie
+# 导入，不受影响。
+FROM node:24.18.0-bookworm-slim AS build
+
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+WORKDIR /app
+
+COPY package*.json ./
+RUN test "$(node --version)" = "v24.18.0" \
+    && npm ci --no-audit --no-fund --strict-allow-scripts
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY migrations ./migrations
+
+RUN npm run build && npm prune --omit=dev --no-audit --strict-allow-scripts
+
+FROM node:24.18.0-bookworm-slim
+
+WORKDIR /app
+
+# Debian 源换清华镜像，加速 apt
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
+
+# Xvfb + google-chrome-stable + Python + patchright（与官方版一致，
+# 仅源不同：apt 走清华、pip 走清华、Chrome 走 dl.google.com 直连）
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates && \
+    wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb && \
+    apt-get install -y --no-install-recommends \
+        xvfb \
+        xauth \
+        xdotool \
+        python3 \
+        python3-pip \
+        python3-venv \
+        fonts-noto-cjk \
+        fonts-liberation \
+        /tmp/chrome.deb \
+    && rm -rf /var/lib/apt/lists/* /tmp/chrome.deb \
+    && python3 -m pip install --no-cache-dir --break-system-packages \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        --trusted-host pypi.tuna.tsinghua.edu.cn \
+        patchright
+
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/migrations ./migrations
+
+COPY --chown=node:node goofishSearch.py sliderSolve.py ./
+
+ENV NODE_ENV=production
+ENV HEADLESS=true
+ENV PORT=3001
+ENV HOME=/tmp
+USER node
+
+CMD ["/bin/bash", "-lc", "set -euo pipefail; (while true; do find /tmp -maxdepth 1 -mindepth 1 \\( -name 'chrome-slider-temp-*' -o -name 'chrome-slider-warm-*' -o -name 'chrome-slider-seed-*' -o -name 'playwright-slider-*' \\) -mmin +30 -exec rm -rf {} + 2>/dev/null || true; find /tmp -maxdepth 1 -mindepth 1 \\( -name '.com.google.Chrome.*' -o -name 'com.google.Chrome.*' \\) -mmin +30 -exec rm -rf {} + 2>/dev/null || true; sleep 300; done) & exec xvfb-run -a -s '-screen 0 1920x1080x24 -ac' node dist/server.js"]

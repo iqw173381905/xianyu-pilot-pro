@@ -1,5 +1,6 @@
 FROM mcr.microsoft.com/playwright:v1.61.1-noble AS build
 
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 WORKDIR /app
 
 COPY package*.json ./
