@@ -30,6 +30,12 @@ user-web → core-api → automation → 闲鱼 MTOP 接口，不依赖爬虫。
 4. 首次用种子管理员 admin / 123456 登录，立即改密码，然后把
    `ADMIN_SEED_ENABLED` 改为 false 并重建 backend（`docker compose up -d backend`；
    注意 `docker restart` 不会重读 .env）。
+5. 自用免会员门禁（可选）：全部功能门禁只看 `sys_user.vip_level`
+   （0 普通 / 1 VIP / 2 SVP，后端 FeatureSwitchService 与 automation 的
+   captcha 优先级共用此字段）。自部署单用户场景直接执行
+   `UPDATE sys_user SET vip_level=2 WHERE id=1;` 即全功能放行，无到期时间。
+   注意：滑块“求解”本身由 crawler-service 执行，精简版未部署该组件，
+   门禁放开后点求解会提示服务不可达，需要时再单独拉起爬虫组件。
 
 ## 三个已踩过的坑
 
