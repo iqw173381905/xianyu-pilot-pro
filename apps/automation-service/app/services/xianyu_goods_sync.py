@@ -3000,9 +3000,21 @@ class XianyuItemPublisher:
             if "SUCCESS" in ret_msg:
                 data_body = result.get("data", {})
 
-                # 解析推荐类目
-                category_predict = data_body.get("categoryPredictResult", [])
+                # 解析推荐标签（新版结构：cardList[].cardData.{valuesList,transportData}，需摊平）
+                raw_card_list = data_body.get("cardList", [])
+                if isinstance(raw_card_list, dict):
+                    # 有时 cardList 可能是 dict 而非 list
+                    raw_card_list = [raw_card_list]
+                card_list = [
+                    self._normalize_recommend_card(c)
+                    for c in raw_card_list
+                    if isinstance(c, dict)
+                ]
+
+                # 解析推荐类目：优先旧结构 categoryPredictResult；
+                # 新版结构改为从「分类」卡（propertyId=-10000）的 valuesList 里取 score 最高且带 catId 的一项
                 recommended_cat = {}
+                category_predict = data_body.get("categoryPredictResult", [])
                 if category_predict and isinstance(category_predict, list) and len(category_predict) > 0:
                     best = category_predict[0]
                     recommended_cat = {
@@ -3011,18 +3023,36 @@ class XianyuItemPublisher:
                         "channelCatId": str(best.get("channelCatId", "")),
                         "tbCatId": str(best.get("tbCatId", "")),
                     }
-
-                # 解析推荐标签
-                card_list = data_body.get("cardList", [])
-                if isinstance(card_list, dict):
-                    # 有时 cardList 可能是 dict 而非 list
-                    card_list = [card_list]
+                else:
+                    for card in raw_card_list:
+                        if not isinstance(card, dict):
+                            continue
+                        card_data = card.get("cardData") or {}
+                        if str(card_data.get("propertyId", "")) != "-10000":
+                            continue
+                        values = card_data.get("valuesList") or []
+                        candidates = [v for v in values if isinstance(v, dict) and v.get("catId")]
+                        if candidates:
+                            best = max(candidates, key=lambda v: float(v.get("score") or 0))
+                            recommended_cat = {
+                                "catId": str(best.get("catId", "")),
+                                "catName": best.get("catName", ""),
+                                "channelCatId": str(best.get("channelCatId", "")),
+                                "tbCatId": str(best.get("tbCatId", "")),
+                            }
+                        break
 
                 logger.info(
                     "类目推荐成功: cat=%s, tags=%d",
                     recommended_cat.get("catName", ""),
                     len(card_list),
                 )
+
+                if not recommended_cat.get("catId"):
+                    # 接口成功但没给出可用类目：明确返回未推荐，
+                    # 避免发布流程误以为已有类目、最终兜底到默认类目
+                    logger.warning("类目推荐无可用 catId，返回未推荐")
+                    return {"recommended": False}
 
                 return {
                     "recommended": True,
@@ -3045,6 +3075,31 @@ class XianyuItemPublisher:
         except Exception as e:
             log_service_failure(logger, e, operation="recommend_goods_category", level=logging.WARNING)
             return {"recommended": False}
+
+    @staticmethod
+    def _normalize_recommend_card(card: dict) -> dict:
+        """把新版推荐卡片（cardData 嵌套结构）摊平为标签构建可用的平铺结构；旧版平铺卡片原样返回。"""
+        card_data = card.get("cardData")
+        if not isinstance(card_data, dict):
+            return card
+        transport = card_data.get("transportData") or {}
+        values = card_data.get("valuesList") or []
+        first = values[0] if values and isinstance(values[0], dict) else {}
+        flat = dict(transport)
+        flat.setdefault("channelCateName", first.get("channelCatName", ""))
+        if not flat.get("channelCateId"):
+            flat["channelCateId"] = str(first.get("channelCatId", ""))
+        if not flat.get("tbCatId"):
+            flat["tbCatId"] = str(first.get("tbCatId", ""))
+        flat.setdefault("labelType", card_data.get("labelType", "common"))
+        flat.setdefault("propertyId", str(card_data.get("propertyId", "-10000")))
+        flat.setdefault("propertyName", card_data.get("propertyName", "分类"))
+        flat.setdefault("text", first.get("catName", ""))
+        flat.setdefault("properties", "")
+        flat.setdefault("from", first.get("from", "newPublishChoice"))
+        flat.setdefault("labelFrom", first.get("labelFrom", "newPublish"))
+        flat.setdefault("isUserClick", str(first.get("isUserClick", "1")))
+        return flat
 
     def _build_item_label_ext_list(self, card_list: list) -> list:
         """将类目推荐返回的 cardList 转换为 itemLabelExtList"""
