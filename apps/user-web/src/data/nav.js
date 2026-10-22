@@ -59,16 +59,6 @@ export const navCategories = [
     ]
   },
   {
-    key: 'distribution',
-    title: '分销管理',
-    icon: 'distribution',
-    items: [
-      { key: 'delivery-mall', label: '货源商城', icon: 'crown' },
-      { key: 'supply-center', label: '供货中心', icon: 'distribution' },
-      { key: 'platform-connect', label: '平台对接', icon: 'link', maintenance: true }
-    ]
-  },
-  {
     key: 'workflow',
     title: '工作流',
     icon: 'workflow',
@@ -77,15 +67,6 @@ export const navCategories = [
       { key: 'workflow-tasks', label: '工作流任务', icon: 'task' },
       { key: 'workflow-drafts', label: '商品草稿箱', icon: 'draft' },
       { key: 'workflow-image-records', label: '图片生成记录', icon: 'image' }
-    ]
-  },
-  {
-    key: 'marketing',
-    title: '营销增长',
-    icon: 'marketing',
-    items: [
-      { key: 'growth-partner', label: '增长合伙人', icon: 'users' },
-      { key: 'invite-poster', label: '邀请海报', icon: 'image', maintenance: true }
     ]
   },
   {

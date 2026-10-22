@@ -121,7 +121,7 @@
         <Pagination v-if="accountsAvailable" :total="total" :current="current" :page-size="pageSize" @page-change="goPage" />
       </CardPanel>
     </div>
-    <div class="right-drawer">
+    <div v-if="selected" class="right-drawer">
       <aside class="right-drawer account-detail-drawer">
   <div class="detail-title-row">
     <h3>账号详情</h3>
@@ -848,7 +848,7 @@ import { useDebouncedRef } from '../composables/useDebouncedRef.js'
 import { guardFeatureAction } from '../composables/featureGuard.js'
 const emit = defineEmits(['navigate'])
 import { generateQrLogin, getQrLoginStatus, cleanupQrLogin } from '../api/qrlogin.js'
-import { accountName } from '../utils/format.js'
+import { accountName, timeText } from '../utils/format.js'
 import { resolveTrustedMediaUrl, resolveAvatarUrl } from '../utils/safeMediaUrl.js'
 import { recordsOfOrThrow } from '../utils/apiData.js'
 import { accountAuthUsable, accountCookieBadgeType, accountCookieLabel, accountLoginHint, accountWsConnectionState, resolveAccountAuthDisplayState } from '../utils/accountAuth.js'
@@ -1948,7 +1948,7 @@ const rows = computed(() => {
       cookieType: accountCookieBadgeType(a, ws),
       ws: accountWsConnectionState(a, ws) === true ? '在线' : accountWsConnectionState(a, ws) === false ? '离线' : '状态未知',
       wsState: accountWsConnectionState(a, ws),
-      sync: a.lastSyncTime || a.profileUpdatedTime || a.updatedTime || '-'
+      sync: timeText(a.lastSyncTime || a.profileUpdatedTime || a.updatedTime)
     }
   })
 })

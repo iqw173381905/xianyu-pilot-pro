@@ -549,17 +549,6 @@ const drawerGroups = [
     ]
   },
   {
-    key: 'distribution',
-    title: '分销管理',
-    icon: 'link',
-    iconClass: 'distribution',
-    items: [
-      { key: 'supply-mall', label: '货源商城' },
-      { key: 'supply-center', label: '供货中心', wip: true },
-      { key: 'platform-connect', label: '平台对接', wip: true }
-    ]
-  },
-  {
     key: 'workflow',
     title: '工作流',
     icon: 'workflow',
@@ -569,16 +558,6 @@ const drawerGroups = [
       { key: 'workflow-tasks', label: '工作流任务', wip: true },
       { key: 'product-drafts', label: '商品草稿箱', wip: true },
       { key: 'image-records', label: '图片生成记录' }
-    ]
-  },
-  {
-    key: 'marketing',
-    title: '营销增长',
-    icon: 'trendingUp',
-    iconClass: 'marketing',
-    items: [
-      { key: 'growth-partner', label: '增长合伙人' },
-      { key: 'invite-poster', label: '邀请海报', wip: true }
     ]
   },
   {

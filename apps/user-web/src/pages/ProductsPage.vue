@@ -243,7 +243,7 @@ import { getBusinessSettings } from '../api/businessSettings.js'
 import { updateProductAutoReplyScope } from '../api/autoReplyScope.js'
 import { deleteGoodsLocal, getGoodsDetail, getGoods, getGoodsStats, updateGoods, updateGoodsAutoRelist, consumePendingLocalGoods, createGoods } from '../api/goods.js'
 import { refreshItems, getSyncProgress, getSyncTasks, publishItem, offShelfItem, updateItemPrice, remoteDeleteItem } from '../api/items.js'
-import { accountName, formatMoney, formatNumber, shortText } from '../utils/format.js'
+import { accountName, formatMoney, formatNumber, shortText, timeText } from '../utils/format.js'
 import { resolveTrustedMediaUrl } from '../utils/safeMediaUrl.js'
 import { recordsOfOrThrow } from '../utils/apiData.js'
 
@@ -345,7 +345,7 @@ const products = computed(() => items.value.map(w => {
     deliveryOn: normalizeSwitchState(w.xianyuAutoDeliveryOn),
     replyOn: normalizeSwitchState(w.xianyuAutoReplyOn),
     autoRelistOn: normalizeSwitchState(item.autoRelistEnabled),
-    time: item.updatedTime || item.createdTime || '-',
+    time: timeText(item.updatedTime || item.createdTime),
     exposureCount: formatNumber(item.exposureCount),
     viewCount: formatNumber(item.viewCount),
     wantCount: formatNumber(item.wantCount),
@@ -480,7 +480,9 @@ async function loadItems(options = {}) {
     const parsedTotal = Number(rawTotal)
     if (!Number.isFinite(parsedTotal) || parsedTotal < records.length) throw new Error('商品总数响应格式异常，请稍后重试')
     totalCount.value = parsedTotal
-    selected.value = products.value[0] || null
+    // 不再默认选中第一件商品：详情抽屉常驻会挤压主列表宽度，仅当此前选中项仍在列表中时保留
+    const prevKey = selected.value?.xyGoodId
+    selected.value = prevKey ? (products.value.find(p => p.xyGoodId === prevKey) || null) : null
     itemsAvailable.value = true
   } catch (e) {
     items.value = []
