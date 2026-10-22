@@ -35,12 +35,24 @@ MUNICIPALITIES = {110000, 120000, 310000, 500000}
 
 
 def fetch(adcode: int) -> dict:
+    """下载并解析某区划的 _full 数据；DataV 不提供该文件时（如济源等
+    省直辖县级单位没有下级区县文件）返回空 FeatureCollection，
+    由上层以其自身作为一条区县记录兜底。"""
     path = os.path.join(RAW_DIR, f"{adcode}_full.json")
     if not os.path.exists(path):
         url = f"{BASE}/{adcode}_full.json"
         subprocess.run([CURL, "-sL", "-o", path, url], check=True)
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        if not isinstance(doc, dict) or "features" not in doc:
+            raise ValueError("unexpected payload")
+        return doc
+    except (ValueError, json.JSONDecodeError):
+        empty = {"type": "FeatureCollection", "features": []}
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(empty, fh)
+        return empty
 
 
 def features_by_level(doc: dict, level: str) -> list:
