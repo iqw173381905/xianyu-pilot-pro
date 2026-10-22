@@ -62,6 +62,13 @@ a {
   background: linear-gradient(180deg, #f8fbff 0%, #f4f8ff 100%)
 }
 
+/* 桌面端整体缩放：界面按 85% 显示，同屏容纳更多内容，避免拥挤错位（移动端保持原生比例） */
+@media (min-width: 901px) {
+  .app-shell {
+    zoom: 0.85
+  }
+}
+
 .sidebar {
   position: fixed;
   left: 0;
