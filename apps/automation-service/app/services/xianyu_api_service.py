@@ -629,7 +629,6 @@ def _build_mtop_request_headers(cookie_str: str) -> dict:
         "Accept": "application/json",
         "Cookie": cookie_str,
         "Referer": "https://seller.goofish.com/",
-        "idle_site_biz_code": "COMMONPRO",
     }
 
 
