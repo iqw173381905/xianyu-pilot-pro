@@ -326,7 +326,7 @@ a {
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 10px;
-  padding-right: 260px
+  padding-right: 360px
 }
 
 .page-head h1 {
@@ -562,13 +562,20 @@ input {
   color: #667491;
   font-weight: 700;
   border-bottom: 1px solid var(--line);
-  background: #fbfdff
+  background: #fbfdff;
+  white-space: nowrap;
+  padding: 0 12px
 }
 
 .base-table td {
   height: 52px;
   border-bottom: 1px solid #eef3fa;
-  color: #30405d
+  color: #30405d;
+  padding: 0 12px
+}
+
+.base-table-scroll {
+  overflow-x: auto
 }
 
 .base-table tr:hover td {

@@ -69,8 +69,7 @@ public class AdminRbacFilter extends OncePerRequestFilter {
                 || hasPathPrefix(path, "/admin-api/admin/users")
                 || hasPathPrefix(path, "/admin-api/admin/tenants")
                 || hasPathPrefix(path, "/admin-api/promotion")
-                || hasPathPrefix(path, "/admin-api/learned-kb")
-                || hasPathPrefix(path, "/admin-api/growth")) {
+                || hasPathPrefix(path, "/admin-api/learned-kb")) {
             return true;
         }
         if (!path.startsWith(MODULE_PREFIX)) {

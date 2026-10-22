@@ -152,28 +152,6 @@
               <button type="button" class="pc-btn pc-btn-primary pc-stat-btn" @click="paymentVisible = true">充值</button>
             </article>
 
-            <article class="pc-stat-card pc-stat-card-balance">
-              <div class="pc-stat-head">
-                <div class="pc-stat-ico pc-stat-ico-cyan">
-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
-                    <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/>
-                    <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="1.6"/>
-                    <circle cx="17" cy="15" r="1.2" fill="currentColor"/>
-                  </svg>
-                </div>
-                <span class="pc-stat-label">可提现余额</span>
-              </div>
-              <div class="pc-stat-value">
-                <strong>¥{{ formatMoneyYuan(growthBalance.availableBalance) }}</strong>
-              </div>
-              <div class="pc-stat-sub">
-                <span class="pc-stat-yuan">代理等级：{{ growthBalance.tierName || '普通代理' }} · 累计收益 ¥{{ formatMoneyYuan(growthBalance.totalEarnings) }}</span>
-              </div>
-              <div class="pc-stat-actions">
-                <button type="button" class="pc-btn pc-btn-primary pc-stat-btn" :disabled="!growthCanWithdraw" @click="openGrowthWithdraw">提现</button>
-                <button type="button" class="pc-btn pc-btn-outline pc-stat-btn" @click="emit('navigate', 'growth-partner')">查看详情</button>
-              </div>
-            </article>
 
             <article class="pc-stat-card">
               <div class="pc-stat-head">
@@ -1186,59 +1164,6 @@
       @close="paymentVisible = false"
       @paid="handleTokenPaid"
     />
-
-    <!-- 提现弹窗 -->
-    <div v-if="growthWithdrawVisible" class="pc-withdraw-mask" @click.self="closeGrowthWithdraw">
-      <div class="pc-withdraw-dialog">
-        <div class="pc-withdraw-head">
-          <h3>申请提现</h3>
-          <button class="pc-withdraw-close" @click="closeGrowthWithdraw">×</button>
-        </div>
-        <div class="pc-withdraw-body">
-          <div class="pc-withdraw-info">
-            <div>
-              <small>可提现余额</small>
-              <b>¥{{ formatMoneyYuan(growthBalance.availableBalance) }}</b>
-            </div>
-            <div>
-              <small>最低提现</small>
-              <b>¥{{ growthMinWithdrawalYuan }}</b>
-            </div>
-          </div>
-          <div class="pc-form-row">
-            <label>提现金额（元）<em class="pc-required">*</em></label>
-            <input v-model.number="growthWithdrawForm.amount" type="number" :min="growthMinWithdrawalYuan" :max="growthAvailableYuan" step="0.01" placeholder="请输入提现金额" />
-            <small v-if="growthWithdrawForm.amount && growthWithdrawForm.amount < growthMinWithdrawalYuan" class="pc-form-error">最低提现金额为 ¥{{ growthMinWithdrawalYuan }}</small>
-          </div>
-          <div class="pc-form-row">
-            <label>收款方式<em class="pc-required">*</em></label>
-            <select v-model="growthWithdrawForm.paymentMethod">
-              <option value="wechat_qr">微信收款码</option>
-              <option value="alipay_qr">支付宝收款码</option>
-              <option value="alipay_account">支付宝收款账号</option>
-              <option value="bank_card">银行卡号</option>
-            </select>
-          </div>
-          <div class="pc-form-row">
-            <label>{{ growthAccountLabel }}<em class="pc-required">*</em></label>
-            <input v-model="growthWithdrawForm.paymentAccount" :placeholder="growthAccountPlaceholder" />
-          </div>
-          <div class="pc-form-row">
-            <label>收款人姓名</label>
-            <input v-model="growthWithdrawForm.paymentName" placeholder="选填，便于核对" />
-          </div>
-          <div v-if="growthWithdrawForm.paymentMethod === 'wechat_qr' || growthWithdrawForm.paymentMethod === 'alipay_qr'" class="pc-form-tip">
-            请在收款账户中填写收款码图片 URL，或联系客服上传二维码。
-          </div>
-        </div>
-        <div class="pc-withdraw-foot">
-          <button class="pc-btn pc-btn-outline" @click="closeGrowthWithdraw">取消</button>
-          <button class="pc-btn pc-btn-primary" :disabled="growthSubmitting || !growthCanSubmit" @click="submitGrowthWithdraw">
-            {{ growthSubmitting ? '提交中...' : '提交申请' }}
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1262,7 +1187,6 @@ import {
 } from '../api/profile.js'
 import { useAuthCapabilities } from '../utils/useAuthCapabilities.js'
 import { globalConfirm } from '../composables/confirmState.js'
-import { getGrowthDashboard, requestWithdrawal as requestGrowthWithdrawal } from '../api/growth.js'
 import { getFeatureSwitchStatus, getFeatureSwitchComparison } from '../api/feature-switch.js'
 import { getTokenRechargePlans } from '../api/payment.js'
 import { APP_VERSION } from '../utils/appMeta.js'
@@ -1306,113 +1230,6 @@ const paymentVisible = ref(false)
 const tokenPlans = ref([])
 
 // ===== 增长合伙人余额卡片 =====
-const growthBalance = reactive({
-  availableBalance: 0,
-  totalEarnings: 0,
-  totalReferrals: 0,
-  validReferrals: 0,
-  totalTokenReward: 0,
-  withdrawnAmount: 0,
-  frozenBalance: 0,
-  tierCode: 'normal',
-  tierName: '',
-  minWithdrawalAmount: 5000,
-  tokenRewardPerReferral: 100,
-})
-const growthWithdrawVisible = ref(false)
-const growthSubmitting = ref(false)
-const growthWithdrawForm = reactive({
-  amount: '',
-  paymentMethod: 'wechat_qr',
-  paymentAccount: '',
-  paymentName: '',
-})
-const growthMinWithdrawalYuan = computed(() => Number(growthBalance.minWithdrawalAmount || 5000) / 100)
-const growthAvailableYuan = computed(() => Number(growthBalance.availableBalance || 0) / 100)
-const growthCanWithdraw = computed(() => growthAvailableYuan.value >= growthMinWithdrawalYuan.value)
-const growthAccountLabel = computed(() => {
-  const map = {
-    wechat_qr: '微信收款码 URL',
-    alipay_qr: '支付宝收款码 URL',
-    alipay_account: '支付宝账号',
-    bank_card: '银行卡号',
-  }
-  return map[growthWithdrawForm.paymentMethod] || '收款账户'
-})
-const growthAccountPlaceholder = computed(() => {
-  const map = {
-    wechat_qr: '请输入微信收款码图片 URL',
-    alipay_qr: '请输入支付宝收款码图片 URL',
-    alipay_account: '请输入支付宝账号（邮箱或手机号）',
-    bank_card: '请输入银行卡号',
-  }
-  return map[growthWithdrawForm.paymentMethod] || '请输入收款账户信息'
-})
-const growthCanSubmit = computed(() => {
-  const amt = Number(growthWithdrawForm.amount) || 0
-  return amt >= growthMinWithdrawalYuan.value && amt <= growthAvailableYuan.value && !!growthWithdrawForm.paymentAccount
-})
-
-async function loadGrowthBalance() {
-  try {
-    const d = await getGrowthDashboard()
-    if (!d) return
-    Object.assign(growthBalance, {
-      availableBalance: d.availableBalance ?? 0,
-      totalEarnings: d.totalEarnings ?? 0,
-      totalReferrals: d.totalReferrals ?? 0,
-      validReferrals: d.validReferrals ?? 0,
-      totalTokenReward: d.totalTokenReward ?? 0,
-      withdrawnAmount: d.withdrawnAmount ?? 0,
-      frozenBalance: d.frozenBalance ?? 0,
-      tierCode: d.tierCode || 'normal',
-      tierName: d.tierConfig?.tier_name || '',
-      minWithdrawalAmount: d.minWithdrawalAmount ?? 5000,
-      tokenRewardPerReferral: d.tokenRewardPerReferral ?? 100,
-    })
-  } catch (e) {
-    console.warn('[ProfileCenter] loadGrowthBalance failed', e)
-  }
-}
-
-function formatMoneyYuan(cent) {
-  if (cent == null) return '0.00'
-  return (Number(cent) / 100).toFixed(2)
-}
-
-function openGrowthWithdraw() {
-  growthWithdrawForm.amount = ''
-  growthWithdrawForm.paymentMethod = 'wechat_qr'
-  growthWithdrawForm.paymentAccount = ''
-  growthWithdrawForm.paymentName = ''
-  growthWithdrawVisible.value = true
-}
-function closeGrowthWithdraw() {
-  growthWithdrawVisible.value = false
-}
-async function submitGrowthWithdraw() {
-  if (!growthCanSubmit.value) return
-  growthSubmitting.value = true
-  try {
-    const yuan = Number(growthWithdrawForm.amount)
-    const cent = Math.round(yuan * 100)
-    await requestGrowthWithdrawal({
-      amount: cent,
-      paymentMethod: growthWithdrawForm.paymentMethod,
-      paymentAccount: growthWithdrawForm.paymentAccount,
-      paymentName: growthWithdrawForm.paymentName,
-    })
-    notice.text = '提现申请已提交，请等待审核'
-    notice.type = 'success'
-    closeGrowthWithdraw()
-    await loadGrowthBalance()
-  } catch (e) {
-    notice.text = '提现失败：' + (e?.message || '未知错误')
-    notice.type = 'error'
-  } finally {
-    growthSubmitting.value = false
-  }
-}
 async function loadTokenPlans() {
   // 加载后台配置的 Token 充值套餐
   try {
@@ -2583,7 +2400,6 @@ onMounted(() => {
   loadOverview().then(() => {
     initOverviewCharts()
   })
-  loadGrowthBalance()
   // 概览页需要 tokenStats（余额/今日/本月）与 7 日趋势数据来渲染统计卡片与图表
   // loadTokenLedger(1, 1) 仅用于获取 stats（取 1 条记录最小化开销）
   loadTokenLedger(1, 1).then(() => {

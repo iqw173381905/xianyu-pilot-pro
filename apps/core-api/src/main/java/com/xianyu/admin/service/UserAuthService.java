@@ -37,9 +37,6 @@ public class UserAuthService {
     private final UserAuthCapabilityService capabilityService;
     private final EmailSenderService emailSenderService;
     private final ApiCredentialService apiCredentialService;
-    @org.springframework.beans.factory.annotation.Autowired
-    @org.springframework.context.annotation.Lazy
-    private com.xianyu.admin.service.GrowthService growthService;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     private final String dummyPasswordHash = encoder.encode(UUID.randomUUID().toString());
     private final SecureRandom secureRandom = new SecureRandom();
@@ -448,15 +445,6 @@ public class UserAuthService {
         }
         // 注册时自动生成 API 对接密钥，避免用户首次进入「API滑块求解」页面时显示「尚未生成」
         ensureApiCredential(tenantId);
-        // 增长合伙人：绑定推荐关系（邀请码 -> 一级用户）
-        Long newUserId = created.get(0).get("id") == null ? null : ((Number) created.get(0).get("id")).longValue();
-        if (newUserId != null && inviteCode != null && !inviteCode.isBlank()) {
-            try {
-                growthService.bindReferral(newUserId, tenantId, inviteCode);
-            } catch (Exception e) {
-                log.warn("增长合伙人：绑定推荐关系失败 userId={} code={} err={}", newUserId, inviteCode, e.getMessage());
-            }
-        }
         log.info("新用户注册成功: email={}, tenantId={}", maskTarget(email), tenantId);
         return buildLoginResult(created.get(0));
     }

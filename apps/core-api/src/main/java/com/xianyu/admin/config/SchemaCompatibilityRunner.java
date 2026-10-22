@@ -58,12 +58,9 @@ public class SchemaCompatibilityRunner implements ApplicationRunner {
         ensureWorkflowTables();
         ensureMiscTables();
         ensureOpenSourceBridgeTables();
-        ensureMallTables();
-        ensureSupplyTables();
         ensureAiCsTables();
         ensureRateTables();
         ensureRefundTables();
-        ensureGrowthTables();
         ensureCompatibilityColumns();
         backfillCompatibilityData();
         if (!failures.isEmpty()) {

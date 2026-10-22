@@ -279,7 +279,6 @@ import {
   getTokenRechargePlans,
   mockPayOrder
 } from '../api/payment.js'
-import { getGrowthBalance } from '../api/growth.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

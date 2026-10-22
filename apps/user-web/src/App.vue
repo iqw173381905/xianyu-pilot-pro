@@ -168,7 +168,6 @@ const pageMap = {
   'delivery-block-rules': asyncPage(() => import('./pages/DeliveryBlockRulesPage.vue')),
   'delivery-source-library': asyncPage(() => import('./pages/DeliverySourceLibraryPage.vue')),
   'delivery-statement': asyncPage(() => import('./pages/DeliveryStatementPage.vue')),
-  'delivery-mall': asyncPage(() => import('./pages/DeliveryMallPage.vue')),
   'delivery-templates': asyncPage(() => import('./pages/DeliveryTemplatesPage.vue')),
   'delivery-records': asyncPage(() => import('./pages/DeliveryRecordsPage.vue')),
   'scheduled-tasks': asyncPage(() => import('./pages/ScheduledTasksPage.vue')),
@@ -191,16 +190,6 @@ const pageMap = {
   vip: asyncPage(() => import('./pages/VipPage.vue')),
   profile: asyncPage(() => import('./pages/ProfileCenterPage.vue')),
   'feature-unavailable': asyncPage(() => import('./pages/FeatureUnavailablePage.vue')),
-  // 供货中心（Phase 1 上线）：供货商管理货源商品
-  'supply-center': asyncPage(() => import('./pages/SupplyCenterPage.vue')),
-  'supply-center-products': asyncPage(() => import('./pages/SupplyProductListPage.vue')),
-  'supply-center-products-new': asyncPage(() => import('./pages/SupplyProductEditPage.vue')),
-  // 路由形态 supply-center-products-edit/{id}，由 SupplyProductListPage 编辑按钮进入
-  'supply-center-products-edit': asyncPage(() => import('./pages/SupplyProductEditPage.vue')),
-  // 维护中页面
-  'platform-connect': asyncPage(() => import('./pages/FeatureUnavailablePage.vue')),
-  'growth-partner': asyncPage(() => import('./pages/GrowthPartnerPage.vue')),
-  'invite-poster': asyncPage(() => import('./pages/FeatureUnavailablePage.vue'))
 }
 
 // 数据同步板块仅在本地开发环境显示（VITE_SHOW_DATA_SYNC=true）
@@ -215,9 +204,9 @@ const allSettingKeys = [
 const authPages = ['login', 'register', 'forgot-password']
 const defaultPage = 'dashboard'
 const profileEntryStorageKey = 'xya_profile_initial_tab'
-const pagesWithEmbeddedTitle = new Set(['messages', 'message-center', 'delivery-statement', 'delivery-mall', 'feature-unavailable', 'card-warehouse', 'auto-delivery', 'refund-detail', 'settings-ai-cs', 'settings-kb', 'settings-notify', 'settings-sync', 'settings-about', 'growth-partner', 'supply-center', 'supply-center-products', 'supply-center-products-new', 'supply-center-products-edit', 'refund-cancel', 'fish-shop-browse', 'message-filters', 'default-reply'])
+const pagesWithEmbeddedTitle = new Set(['messages', 'message-center', 'delivery-statement', 'feature-unavailable', 'card-warehouse', 'auto-delivery', 'refund-detail', 'settings-ai-cs', 'settings-kb', 'settings-notify', 'settings-sync', 'settings-about', 'refund-cancel', 'fish-shop-browse', 'message-filters', 'default-reply'])
 // 功能开关检查跳过的页面：登录/注册/忘记密码/占位页/工作台（避免登录后卡死）/维护中页面
-const featureSwitchSkipPages = new Set(['login', 'register', 'forgot-password', 'feature-unavailable', 'dashboard', 'platform-connect', 'growth-partner', 'invite-poster'])
+const featureSwitchSkipPages = new Set(['login', 'register', 'forgot-password', 'feature-unavailable', 'dashboard'])
 const profileEntryTabs = new Set(['overview', 'security', 'token', 'recharge'])
 const mobileLitePages = new Set([
   'dashboard',
@@ -239,11 +228,7 @@ const mobileLitePages = new Set([
   'profile',
   'api-slider-solve',
   'refund-detail',
-  'delivery-source-library',
-  'supply-center',
-  'supply-center-products',
-  'supply-center-products-new',
-  'supply-center-products-edit'
+  'delivery-source-library'
 ])
 
 // 剥离 hash 路由中的查询参数（如 register?ref=XXX -> register）
@@ -266,7 +251,6 @@ const isKnownPage = key => {
     if (path.startsWith('chat-detail/')) return true
     if (path.startsWith('fish-shop-edit/')) return true
     if (path.startsWith('refund-detail/')) return true
-    if (path.startsWith('supply-center-products-edit/')) return true
   }
   return false
 }
@@ -281,7 +265,6 @@ const normalizePageKey = key => {
       if (path.startsWith('chat-detail/')) return 'chat-detail'
       if (path.startsWith('fish-shop-edit/')) return 'fish-shop-edit'
       if (path.startsWith('refund-detail/')) return 'refund-detail'
-      if (path.startsWith('supply-center-products-edit/')) return 'supply-center-products-edit'
     }
     return path
   }
@@ -301,7 +284,6 @@ const getNormalizedKey = (raw) => {
       if (path.startsWith('chat-detail/')) return 'chat-detail'
       if (path.startsWith('fish-shop-edit/')) return 'fish-shop-edit'
       if (path.startsWith('refund-detail/')) return 'refund-detail'
-      if (path.startsWith('supply-center-products-edit/')) return 'supply-center-products-edit'
     }
     return path
   }

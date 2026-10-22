@@ -131,7 +131,6 @@ export const pageTitles = {
   'delivery-block-rules': ['发货拦截规则', '买家已有订单/未确认收货时自动拦截发货'],
   'delivery-source-library': ['货源库', '统一管理文本货源，支持 AI 推荐适配商品并批量配置'],
   'delivery-statement': ['发货声明', '管理发货声明文案与生效范围'],
-  'delivery-mall': ['货源商城', '海量优质虚拟商品资源，自动发货，即买即用'],
   'delivery-records': ['发货记录', '追踪自动发货、异常与补发情况'],
   'scheduled-tasks': ['定时任务', '查看和维护定时任务执行计划'],
   'settings-notify': ['通知设置', '配置消息通知方式与提醒规则'],
@@ -143,13 +142,6 @@ export const pageTitles = {
   'api-slider-solve': ['API滑块求解', '开放滑块求解能力，对接外部系统，独立记录 API 求解与 Token 消费情况'],
   logs: ['操作日志', '查看系统操作与关键行为记录'],
   feedback: ['反馈建议', '提交产品建议、Bug 反馈与功能诉求'],
-  'supply-center': ['供货中心', '管理你的供货商品、查看收入与审核状态'],
-  'supply-center-products': ['我的货源', '管理已上传的货源商品'],
-  'supply-center-products-new': ['上传货源', '提交新的货源商品到平台'],
-  'supply-center-products-edit': ['编辑货源', '修改货源商品信息'],
-  'platform-connect': ['平台对接', '该功能正在维护升级中，敬请期待'],
-  'growth-partner': ['增长合伙人', '邀请用户、收益概览、代理功能与数据分析全掌握'],
-  'invite-poster': ['邀请海报', '该功能正在维护升级中，敬请期待'],
   vip: ['VIP会员中心', '查看会员能力与套餐信息'],
   profile: ['个人中心', '管理账号资料、安全设置与余额信息']
 }

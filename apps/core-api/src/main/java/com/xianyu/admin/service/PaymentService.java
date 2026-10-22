@@ -57,14 +57,6 @@ public class PaymentService {
     @Autowired(required = false)
     private MemberPromotionService promotionService;
 
-    /**
-     * 增长合伙人服务（可选依赖）：消费成功后触发邀请奖励与现金分成。
-     * 使用 @Lazy 避免循环依赖。
-     */
-    @Autowired
-    @Lazy
-    private GrowthService growthService;
-
     @Value("${payment.sandbox.enabled:false}")
     private boolean sandboxModeEnabled;
 
@@ -727,27 +719,7 @@ public class PaymentService {
         // 活动订单：支付成功后确认扣减名额（preoccupied-1, sold+1）。幂等：通过 quota_preoccupied 标志控制。
         confirmActivityQuotaIfPreoccupied(order);
         // 增长合伙人：消费成功后触发邀请奖励（Token 奖励 + 现金分成）
-        triggerGrowthReward(order, source);
         return orderDetail(orderNo);
-    }
-
-    /**
-     * 增长合伙人奖励触发：消费成功后调用 GrowthService 发放邀请人 Token 奖励与现金分成。
-     * 异常不阻断支付成功（已发放权益），仅记录日志便于人工核对。
-     */
-    private void triggerGrowthReward(Map<String, Object> order, String source) {
-        if (growthService == null) return;
-        try {
-            long userId = storedPositiveLong(order.get("user_id"), "支付用户 ID");
-            long tenantId = storedPositiveLong(order.get("tenant_id"), "支付租户 ID");
-            String orderNo = text(order.get("order_no"));
-            String orderType = text(order.get("order_type"));
-            long amountCent = storedNonNegativeLong(order.get("amount_cent"), "支付金额");
-            String title = text(order.get("title"));
-            growthService.onConsumptionPaid(userId, tenantId, orderNo, orderType, amountCent, title);
-        } catch (Exception e) {
-            log.error("增长合伙人奖励触发失败 orderNo={} errorType={}", text(order.get("order_no")), e.getClass().getSimpleName(), e);
-        }
     }
 
     /**

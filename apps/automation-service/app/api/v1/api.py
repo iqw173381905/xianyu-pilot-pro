@@ -10,7 +10,6 @@ from .routes import knowledge_base as knowledge_base_module
 from .routes import auto_reply_scope as auto_reply_scope_module
 from .routes import captcha as captcha_module
 from .routes import feishu as feishu_module
-from .routes import mall_category as mall_category_module
 from .routes import slider_api as slider_api_module
 from .routes import ai_cs as ai_cs_module
 from .routes import fish_shop as fish_shop_module
@@ -68,7 +67,6 @@ api_router.include_router(auto_category_module.categories_router, tags=["categor
 api_router.include_router(knowledge_base_module.router, tags=["knowledgeBase"])
 api_router.include_router(auto_reply_scope_module.router, tags=["autoReplyScope"])
 api_router.include_router(feishu_module.router, tags=["feishu"])
-api_router.include_router(mall_category_module.router, tags=["mallCategory"])
 api_router.include_router(slider_api_module.router, tags=["slider-api"])
 api_router.include_router(ai_cs_module.router, tags=["aiCs"])
 api_router.include_router(fish_shop_module.router, tags=["fishShop"])
