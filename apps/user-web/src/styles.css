@@ -422,7 +422,7 @@ input {
 }
 
 .stat-grid {
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   margin: 14px 0 18px
 }
 
@@ -1764,10 +1764,6 @@ input {
 @media (max-width:1500px) {
   :root {
     --sidebar: 200px
-  }
-
-  .stat-grid {
-    grid-template-columns: repeat(3, 1fr)
   }
 
   .quick-grid,

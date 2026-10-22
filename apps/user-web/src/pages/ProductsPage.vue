@@ -219,7 +219,7 @@
           <div class="metric-tile"><span>自动发货</span><b :class="{'text-green':selected.deliveryOn === true,'text-gray':selected.deliveryOn !== true}">{{ switchStateText(selected.deliveryOn) }}</b></div>
           <div class="metric-tile"><span>自动回复</span><b :class="{'text-green':selected.replyOn === true,'text-gray':selected.replyOn !== true}">{{ switchStateText(selected.replyOn) }}</b></div>
           <div class="metric-tile"><span>售整自动上架</span><b :class="{'text-green':selected.autoRelistOn === true,'text-gray':selected.autoRelistOn !== true}">{{ switchStateText(selected.autoRelistOn) }}</b></div>
-          <div class="metric-tile"><span>账号</span><b>{{ accountName(accounts.find(a => a.id === Number(selected.xianyuAccountId)) || {}) || '-' }}</b></div>
+          <div class="metric-tile metric-tile-wide"><span>账号</span><b>{{ accountName(accounts.find(a => a.id === Number(selected.xianyuAccountId)) || {}) || '-' }}</b></div>
         </div>
         <div class="grid drawer-actions">
           <AppButton type="primary" @click="loadDetail(selected)">详情</AppButton>
@@ -1987,6 +1987,9 @@ onBeforeUnmount(()=>{ syncPollCanceled = true; window.removeEventListener('xya-h
   text-align: center;
   border: 1px solid #eef2f7;
 }
+.metric-tile-wide {
+  grid-column: 1 / -1;
+}
 .metric-tile span {
   font-size: 12px;
   color: #94a3b8;
@@ -2015,16 +2018,15 @@ onBeforeUnmount(()=>{ syncPollCanceled = true; window.removeEventListener('xya-h
   gap: 4px;
 }
 
+.products-table :deep(.base-table) {
+  min-width: 1060px;
+}
+
 .products-table :deep(.badge.purple) {
   background: #f4efff;
   color: #7c3aed;
 }
 
-@media (max-width: 1280px) {
-  .products-stat-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
 @media (max-width: 1200px) {
   .products-drawer {
     min-width: 280px;
@@ -2057,9 +2059,6 @@ onBeforeUnmount(()=>{ syncPollCanceled = true; window.removeEventListener('xya-h
     min-width: 0;
     max-width: none;
     max-height: none;
-  }
-  .products-stat-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>
