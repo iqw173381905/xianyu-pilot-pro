@@ -138,6 +138,9 @@ class SolveTask:
     solve_reason: str = field(default="", compare=False)
     priority: int = field(default=0, compare=False)
     retry_count: int = field(default=0, compare=False)
+    # 求解目标 URL（可选）：为空时求解器使用默认页面；带挑战链接时浏览器
+    # 直接打开该链接求解，使解出的 x5sec 与触发验证的接口上下文一致
+    target_url: str = field(default="", compare=False)
     record_id: Optional[int] = field(default=None, compare=False)
     enqueued_at: float = field(default_factory=time.time, compare=False)
 
@@ -381,6 +384,7 @@ class CaptchaQueueManager:
         priority: int = 0,
         retry_count: int = 0,
         skip_dedup: bool = False,
+        target_url: str = "",
     ) -> tuple[Optional[int], int, int]:
         """入队一个滑块求解任务。
 
@@ -585,6 +589,7 @@ class CaptchaQueueManager:
             solve_reason=solve_reason,
             priority=priority,
             retry_count=retry_count,
+            target_url=target_url or "",
             record_id=record_id,
             enqueued_at=time.time(),
         )
@@ -738,6 +743,7 @@ class CaptchaQueueManager:
                     solve_reason=task.solve_reason,
                     record_id=task.record_id,  # 复用已创建的记录
                     priority=task.priority,
+                    target_url=task.target_url or None,
                 ),
                 timeout=SOLVE_TASK_TIMEOUT_SEC,
             )
@@ -886,6 +892,7 @@ class CaptchaQueueManager:
             priority=task.priority,
             retry_count=retry_count,
             skip_dedup=True,
+            target_url=task.target_url or "",
         )
 
     async def get_queue_position(self, record_id: Optional[int]) -> tuple[int, int]:
@@ -958,6 +965,7 @@ async def enqueue_solve(
     priority: int = 0,
     retry_count: int = 0,
     skip_dedup: bool = False,
+    target_url: str = "",
 ) -> Optional[int]:
     """便捷接口：入队一个滑块求解任务（仅返回 record_id）。
 
@@ -985,6 +993,7 @@ async def enqueue_solve(
         priority=priority,
         retry_count=retry_count,
         skip_dedup=skip_dedup,
+        target_url=target_url or "",
     )
     return record_id
 
@@ -998,6 +1007,7 @@ async def enqueue_solve_with_position(
     priority: int = 0,
     retry_count: int = 0,
     skip_dedup: bool = False,
+    target_url: str = "",
 ) -> Optional[tuple[int, int, int]]:
     """便捷接口：入队一个滑块求解任务，返回排队位置信息。
 
@@ -1020,6 +1030,7 @@ async def enqueue_solve_with_position(
         priority=priority,
         retry_count=retry_count,
         skip_dedup=skip_dedup,
+        target_url=target_url or "",
     )
     if record_id is None:
         return None

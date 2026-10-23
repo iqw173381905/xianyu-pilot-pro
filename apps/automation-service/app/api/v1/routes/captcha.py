@@ -139,6 +139,7 @@ async def auto_solve_captcha(
             solve_reason=solve_reason,
             priority=priority,
             skip_dedup=(trigger_scene == "manual_retry"),
+            target_url=str(data.get("targetUrl") or ""),
         )
 
         if not enqueued:
@@ -225,6 +226,7 @@ async def handle_captcha(
             solve_reason=solve_reason,
             priority=priority,
             skip_dedup=(trigger_scene == "manual_retry"),
+            target_url=str(data.get("targetUrl") or ""),
         )
 
         if not enqueued:

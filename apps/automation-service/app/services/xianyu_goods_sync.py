@@ -150,6 +150,12 @@ def _download_public_image_sync(raw_url: str) -> bytes:
 class XianyuRiskControlError(RuntimeError):
     """平台风控/人机验证，不携带上游响应正文。"""
 
+    def __init__(self, message: str = "", challenge_url: str = ""):
+        super().__init__(message)
+        # RGV587 响应 data.url 中的挑战链接（_____tmd_____/punish）。
+        # 供上层把滑块求解目标对准该链接；为空表示上游未下发挑战链接。
+        self.challenge_url = challenge_url or ""
+
 
 class XianyuAuthExpiredError(RuntimeError):
     """账号登录态过期。"""
@@ -1285,8 +1291,12 @@ def fetch_item_detail(
             ret = response.get("ret", []) if isinstance(response, dict) else "?"
             ret_msg = ret[0] if isinstance(ret, list) and ret else str(ret)
             # 检测风控：触发 Baxia 验证或 RGV587 时抛异常，让上层停止详情同步
+            # 同时带上响应里的挑战链接，上层据此入队定向求解（此前链接被丢弃，
+            # 求解器只能对着默认页面求解，解不出详情接口需要的 x5sec）
             if "FAIL_SYS_USER_VALIDATE" in ret_msg or "RGV587" in ret_msg:
-                raise XianyuRiskControlError("商品详情同步触发平台验证")
+                _data = response.get("data", {}) if isinstance(response, dict) else {}
+                _challenge_url = str(_data.get("url") or "") if isinstance(_data, dict) else ""
+                raise XianyuRiskControlError("商品详情同步触发平台验证", challenge_url=_challenge_url)
             logger.warning("详情API返回空 itemId=%s", item_id)
         return result
     except XianyuRiskControlError:
@@ -1591,6 +1601,32 @@ async def sync_goods_for_account(
         raise
 
 
+def _inject_cached_x5sec(cookie_str: str) -> str:
+    """详情同步专用：账号 Cookie 缺 x5sec 时，尝试注入 Redis 缓存的 x5sec。
+
+    x5sec 可能已由其他流程写入缓存（WS Token 刷新的静默提取、滑块求解成功
+    后的缓存），但详情同步此前从不查缓存，缓存里有也用不上。
+    无缓存/注入失败时原样返回，不影响主流程。
+    """
+    try:
+        from .x5sec_cache_client import (
+            cookie_has_x5sec,
+            get_cached_x5sec,
+            inject_x5sec_into_cookie,
+        )
+        if cookie_has_x5sec(cookie_str):
+            return cookie_str
+        cached = get_cached_x5sec(cookie_str)
+        if cached:
+            logger.info("详情同步: 已注入缓存 x5sec（免滑块）")
+            return inject_x5sec_into_cookie(cookie_str, cached)
+    except Exception as e:
+        logger.warning(
+            "详情同步: 注入缓存 x5sec 失败（降级为原始 Cookie）: %s", type(e).__name__
+        )
+    return cookie_str
+
+
 async def _async_fetch_details(
     cookie_str: str,
     items: list[dict],
@@ -1608,6 +1644,10 @@ async def _async_fetch_details(
     from sqlalchemy import select, update, and_
 
     logger.info("详情同步任务启动: account_id=%d, sync_id=%s, items_count=%d", account_id, sync_id, len(items))
+
+    # 详情接口对 x5sec 的要求最严：Cookie 里没有时先看 Redis 缓存里有没有
+    # 其他流程解出的 x5sec，有就注入，避免明明缓存可用却直接撞风控
+    cookie_str = _inject_cached_x5sec(cookie_str)
 
     async def _do_detail_sync():
         detail_count = 0
@@ -1720,6 +1760,38 @@ async def _async_fetch_details(
                     logger, e, operation="sync_goods_detail_risk_control",
                     tenant_id=tenant_id, account_id=account_id, level=logging.WARNING,
                 )
+                # 把本次 RGV587 的挑战链接交给求解队列定向求解：求解成功后
+                # x5sec 会回写账号 Cookie，下一次详情同步即可恢复。此前详情
+                # 路径只是放弃同步、丢弃挑战链接，链路永远接不上。
+                # 入队受队列自身的退避/去重约束，不会高频打扰求解器。
+                _challenge_url = getattr(e, "challenge_url", "") or ""
+                if _challenge_url:
+                    try:
+                        from .captcha_queue import enqueue_solve
+                        _record_id = await enqueue_solve(
+                            account_id=account_id,
+                            tenant_id=tenant_id,
+                            trigger_scene="goods_detail",
+                            open_reason="商品详情同步触发平台验证（RGV587）",
+                            solve_reason="定向求解详情接口挑战，x5sec 回写账号 Cookie 后详情同步恢复",
+                            target_url=_challenge_url,
+                        )
+                        if _record_id:
+                            logger.info(
+                                "详情同步: 已入队定向滑块求解 account_id=%d record_id=%d",
+                                account_id, _record_id,
+                            )
+                        else:
+                            # 被退避/IP 熔断/去重跳过是预期行为（避免高频撞风控），
+                            # 下一次详情同步会重新尝试入队
+                            logger.info(
+                                "详情同步: 定向求解未入队（退避/熔断/去重）account_id=%d，下次同步再试",
+                                account_id,
+                            )
+                    except Exception as _eq_err:
+                        logger.warning(
+                            "详情同步: 定向求解入队失败: %s", type(_eq_err).__name__
+                        )
                 break
             except Exception as e:
                 log_service_failure(

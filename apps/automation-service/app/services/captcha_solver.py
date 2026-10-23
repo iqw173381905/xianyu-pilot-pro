@@ -836,6 +836,7 @@ async def handle_captcha_for_account(
     solve_reason: str = "",
     record_id: Optional[int] = None,
     priority: int = 0,
+    target_url: Optional[str] = None,
 ) -> dict:
     """综合处理账号的滑块验证场景。
 
@@ -1141,7 +1142,7 @@ async def handle_captcha_for_account(
             status_message=f"正在自动求解滑块验证（{trigger_scene}）",
         )
 
-        auto_solve_result = await try_auto_solve(account_id, tenant_id)
+        auto_solve_result = await try_auto_solve(account_id, tenant_id, target_url=target_url)
 
         # === 成功率统计：批量写入每次尝试的明细（用于后台成功率统计） ===
         # crawler-service 的 sliderSolver 已在 attemptsDetail 中采集每次 attempt 的方案/方法/策略/成功状态/耗时
